@@ -1,113 +1,137 @@
-import Image from "next/image";
+'use client'
+
+import { useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Loader2, Image as ImageIcon } from "lucide-react"
 
 export default function Home() {
+  const [url, setUrl] = useState("")
+  const [output, setOutput] = useState<string | null>(null)
+  const [loadingState, setLoadingState] = useState<"idle" | "scrapping" | "starting" | "processing" | "successfull" | "failed" | "canceled" | "error">("idle")
+  const [error, setError] = useState("")
+  const isLoading = loadingState === "scrapping" || loadingState === "starting" || loadingState === "processing" || false
+  const statusPullingInterval = 1000
+
+  const checkPredictionStatus = async (id: string) => {
+    try {
+      const res = await fetch("/api/status?id=" + id)
+      if (res.status !== 200) {
+        setLoadingState("failed")
+        setError("Failed to generate images. Please try again.")
+      }
+      const resBody = await res.json()
+      setLoadingState(resBody.data.status)
+      if (resBody.data.status !== "starting" && resBody.data.status !== "processing") {
+        setLoadingState(resBody.data.status)
+        if (resBody.data.output) {
+          setOutput(resBody.data.output)
+        }
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, statusPullingInterval))
+      await checkPredictionStatus(id)
+    } catch (error) {
+      console.log(error);
+      setLoadingState("failed")
+      setError("Failed to generate images. Please try again.")
+    }
+  }
+
+  const handleSubmit = async (e: React.MouseEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError("")
+    setOutput(null)
+
+    if (!url) {
+      setError("Please enter a valid URL")
+      return
+    }
+
+    setLoadingState("scrapping")
+    try {
+      const res = await fetch("/api/create", {
+        method: "POST",
+        body: JSON.stringify({
+          url
+        })
+      })
+      const resBody = await res.json()
+      if (res.status !== 200) {
+        setLoadingState("failed")
+        setError(resBody.error?.issues?.[0].message || "Failed to generate images. Please try again.")
+      }
+      setLoadingState(resBody.data.status)
+      checkPredictionStatus(resBody.data.id)
+    } catch (err) {
+      console.log(error);
+      setLoadingState("failed")
+      setError("Failed to generate images. Please try again.")
+    }
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
+    <div className="container mx-auto p-4 pt-12 max-w-2xl grid min-h-svh items-center">
+      <div>
+        <h1 className="text-2xl font-bold mb-4">Website Image Generator</h1>
+        <form onSubmit={handleSubmit} className="mb-6">
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <Input
+              type="url"
+              placeholder="Enter website URL"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-grow"
             />
-          </a>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating
+                </>
+              ) : (
+                "Generate Images"
+              )}
+            </Button>
+          </div>
+        </form>
+
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+
+        {isLoading && (
+          <div className="flex justify-center items-center h-64 gap-2">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <p>{loadingState === "scrapping" ? "Gathering website details..." : loadingState === "starting" ? "Starting image genaration..." : loadingState === "processing" ? "Genarating image..." : ""}</p>
+          </div>
+        )}
+
+        {output ? (
+          <Card>
+            <CardContent className="p-2">
+              <div className="aspect-square relative">
+                <img
+                  src={output}
+                  alt={`Generated image`}
+                  className="object-cover rounded-md"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {(loadingState === "idle") && (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+            <ImageIcon className="h-16 w-16 mb-2" />
+            <p>Enter a URL and click "Generate Images" to get started</p>
+          </div>
+        )}
+        {loadingState === "failed" && (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+          <p>Failed to Generate Image. Please Try again.</p>
         </div>
+        )}
       </div>
-
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  );
+    </div>
+  )
 }
