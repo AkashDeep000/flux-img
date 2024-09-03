@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'; 
 import { NextRequest, NextResponse } from "next/server";
 import Replicate from "replicate";
 import { z } from "zod";
@@ -7,7 +8,6 @@ const fluxModel = process.env.FLUX_MODEL || "flux_schnell"
 
 export async function GET(req: NextRequest) {
     const idSchema = z.string()
-
     try {
         const id = idSchema.parse(req.nextUrl.searchParams.get("id"))
         const latest = await replicate.predictions.get(id)

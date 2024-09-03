@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from "react"
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -123,7 +124,7 @@ export default function Home() {
         {(loadingState === "idle") && (
           <div className="flex flex-col items-center justify-center h-64 text-gray-400">
             <ImageIcon className="h-16 w-16 mb-2" />
-            <p>Enter a URL and click "Generate Images" to get started</p>
+            <p>Enter a URL and click &quot;Generate Images&quot; to get started</p>
           </div>
         )}
         {loadingState === "failed" && (
